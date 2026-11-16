@@ -1,13 +1,17 @@
 from typing import List, Optional
 from collections import Counter
+import ipaddress
 import os
+from pathlib import Path
 import re
+from urllib.parse import urlparse
 import httpx
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response
 from sqlalchemy import select, func, cast, String
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
+from app.core.config import settings, BACKEND_DIR
 from app.core.database import get_db
 from app.models.play import Work, Source, MediaFile, Subtitle, LicenseAssessment
 from app.schemas.play import (
@@ -24,6 +28,43 @@ from app.schemas.play import (
 from app.services.license_engine import LicenseEngine
 
 router = APIRouter(prefix="/play", tags=["Lumière Play"])
+
+# Diretórios autorizados para leitura local de legendas
+ALLOWED_SUBTITLE_DIRS = [
+    (BACKEND_DIR / "data" / "subtitles").resolve(),
+    (BACKEND_DIR / "cache" / "subtitles").resolve(),
+]
+
+
+def escape_like(val: str) -> str:
+    """Escapa caracteres especiais do operador LIKE/ILIKE para evitar wildcard injection."""
+    return val.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
+
+
+def is_safe_external_url(url: str) -> bool:
+    """
+    Guarda anti-SSRF: valida que a URL externa não aponta para endereços locais,
+    privados ou metadados de nuvem sensíveis.
+    """
+    try:
+        parsed = urlparse(url)
+        if parsed.scheme not in ("http", "https"):
+            return False
+        hostname = parsed.hostname
+        if not hostname:
+            return False
+        hostname_lower = hostname.lower()
+        if hostname_lower in ("localhost", "127.0.0.1", "0.0.0.0", "::1", "metadata.google.internal"):
+            return False
+        try:
+            ip = ipaddress.ip_address(hostname)
+            if ip.is_private or ip.is_loopback or ip.is_link_local or ip.is_reserved:
+                return False
+        except ValueError:
+            pass
+        return True
+    except Exception:
+        return False
 
 
 def srt_to_vtt(text: str) -> str:
@@ -87,16 +128,16 @@ async def get_play_catalog(
         query = query.where(Work.kind == kind)
         count_query = count_query.where(Work.kind == kind)
 
-    # Filtro textual por título ou título original
-    if search:
-        search_pattern = f"%{search.strip()}%"
+    # Filtro textual por título ou título original (com escape contra wildcard injection)
+    if search and search.strip():
+        search_pattern = f"%{escape_like(search.strip())}%"
         query = query.where((Work.title.ilike(search_pattern)) | (Work.original_title.ilike(search_pattern)))
         count_query = count_query.where((Work.title.ilike(search_pattern)) | (Work.original_title.ilike(search_pattern)))
 
-    # Filtro por gênero diretamente em SQL
+    # Filtro por gênero diretamente em SQL (com escape contra wildcard injection)
     if genre and genre.strip():
         genre_clean = genre.strip()
-        genre_pattern = f"%{genre_clean}%"
+        genre_pattern = f"%{escape_like(genre_clean)}%"
         query = query.where(cast(Work.genres, String).ilike(genre_pattern))
         count_query = count_query.where(cast(Work.genres, String).ilike(genre_pattern))
 
@@ -376,11 +417,14 @@ async def get_stream_manifest(
 @router.get("/subtitles/{subtitle_id}.vtt")
 async def get_subtitle_vtt(
     subtitle_id: int,
+    request: Request,
     db: AsyncSession = Depends(get_db),
 ):
     """
-    Entrega a legenda em formato WebVTT (text/vtt; charset=utf-8) com cabeçalhos CORS liberados.
-    Converte automaticamente arquivos .srt do Internet Archive ou serve arquivos .vtt curados.
+    Entrega a legenda em formato WebVTT (text/vtt; charset=utf-8) com validação de segurança:
+    - Prevenção contra SSRF para URLs externas (bloqueio de IPs privados e loopback)
+    - Verificação estrita de certificados SSL/TLS (verify=True)
+    - Prevenção contra Directory Traversal em arquivos locais de legenda
     """
     res = await db.execute(select(Subtitle).where(Subtitle.id == subtitle_id))
     sub = res.scalars().first()
@@ -388,9 +432,11 @@ async def get_subtitle_vtt(
         raise HTTPException(status_code=404, detail="Legenda não encontrada.")
 
     raw_text = ""
-    if sub.url.startswith("http://") or sub.url.startswith("https://"):
+    if sub.url.startswith(("http://", "https://")):
+        if not is_safe_external_url(sub.url):
+            raise HTTPException(status_code=400, detail="Origem de legenda externa inválida ou restrita.")
         try:
-            async with httpx.AsyncClient(follow_redirects=True, verify=False, timeout=12.0) as client:
+            async with httpx.AsyncClient(follow_redirects=True, verify=True, timeout=12.0) as client:
                 resp = await client.get(sub.url)
                 if resp.status_code == 200:
                     try:
@@ -400,9 +446,17 @@ async def get_subtitle_vtt(
         except Exception:
             raw_text = "WEBVTT\n\n"
     else:
-        if os.path.exists(sub.url):
-            with open(sub.url, "r", encoding="utf-8", errors="replace") as f:
-                raw_text = f.read()
+        # Validação estrita de Path Traversal para caminhos locais
+        try:
+            target_path = Path(sub.url).resolve()
+            is_authorized = any(target_path.is_relative_to(allowed_dir) for allowed_dir in ALLOWED_SUBTITLE_DIRS)
+            if is_authorized and target_path.is_file():
+                with open(target_path, "r", encoding="utf-8", errors="replace") as f:
+                    raw_text = f.read()
+            else:
+                raw_text = "WEBVTT\n\n"
+        except Exception:
+            raw_text = "WEBVTT\n\n"
 
     vtt_content = srt_to_vtt(raw_text) if raw_text else "WEBVTT\n\n"
     return Response(
@@ -411,5 +465,6 @@ async def get_subtitle_vtt(
         headers={
             "Access-Control-Allow-Origin": "*",
             "Cache-Control": "public, max-age=3600",
+            "X-Content-Type-Options": "nosniff",
         },
     )

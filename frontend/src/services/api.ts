@@ -11,17 +11,14 @@ import {
 } from '../types';
 
 // Permite configurar URL customizada via env ou usa a rota relativa /api
-const BASE_URL =
-  import.meta.env.VITE_API_URL ||
-  (typeof window !== 'undefined' && window.location.hostname === 'localhost'
-    ? 'https://bhflix.vercel.app/api'
-    : '/api');
+const BASE_URL = import.meta.env.VITE_API_URL || '/api';
 
 export const FASTAPI_BASE_URL =
   import.meta.env.VITE_FASTAPI_URL || 'http://localhost:8000/v1';
 
 export const TMDB_IMAGE_BASE = 'https://image.tmdb.org/t/p';
-export const DIRECT_TMDB_KEY = '2dca580c2a14b55200e784d157207b4d';
+export const DIRECT_TMDB_KEY =
+  import.meta.env.VITE_TMDB_API_KEY || '2dca580c2a14b55200e784d157207b4d';
 
 // Catálogo curado de fallback para quando a API local estiver iniciando
 const FALLBACK_PLAY_CATALOG: PlayWorkItem[] = [

@@ -1,7 +1,7 @@
 import { FavoriteItem } from '../types';
 
 const STORAGE_KEY = 'lumiere_favorites';
-const LEGACY_STORAGE_KEY = 'devflix_favorites';
+const LEGACY_STORAGE_KEY = 'lumiere_favorites_v1';
 
 /**
  * Busca os favoritos salvos no navegador (com suporte a migração da chave legada)

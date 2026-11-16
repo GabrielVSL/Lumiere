@@ -6,7 +6,25 @@ import 'dotenv/config';
 
 const app = express();
 
-app.use(cors({ origin: "*" }));
+const ALLOWED_ORIGINS = [
+  'http://localhost:5173',
+  'http://localhost:3000',
+  'https://lumiere.vercel.app',
+];
+
+// CORS Restrito: autoriza apenas instâncias locais e domínios Vercel da aplicação
+app.use(
+  cors({
+    origin: (origin, callback) => {
+      if (!origin || ALLOWED_ORIGINS.includes(origin) || origin.endsWith('.vercel.app')) {
+        callback(null, true);
+      } else {
+        callback(new Error('Origem não autorizada pela política de CORS'));
+      }
+    },
+    credentials: true,
+  })
+);
 
 const API_KEY = process.env.API_KEY || "2dca580c2a14b55200e784d157207b4d";
 
@@ -78,6 +96,9 @@ app.get("/api/trending", async (req, res) => {
 // 4. Detalhes de Filme
 app.get("/api/movie/:id", async (req, res) => {
   const movieId = req.params.id;
+  if (!/^\d+$/.test(movieId)) {
+    return res.status(400).json({ error: "Identificador de filme inválido: deve ser numérico" });
+  }
   try {
     const response = await axios.get(`https://api.themoviedb.org/3/movie/${movieId}`, {
       params: {
@@ -98,6 +119,9 @@ app.get("/api/movie/:id", async (req, res) => {
 // 5. Detalhes de Série
 app.get("/api/series/:id", async (req, res) => {
   const seriesId = req.params.id;
+  if (!/^\d+$/.test(seriesId)) {
+    return res.status(400).json({ error: "Identificador de série inválido: deve ser numérico" });
+  }
   try {
     const response = await axios.get(`https://api.themoviedb.org/3/tv/${seriesId}`, {
       params: {
@@ -118,6 +142,9 @@ app.get("/api/series/:id", async (req, res) => {
 // 6. Temporadas de Série
 app.get("/api/series/:id/season/:seasonNumber", async (req, res) => {
   const { id, seasonNumber } = req.params;
+  if (!/^\d+$/.test(id) || !/^\d+$/.test(seasonNumber)) {
+    return res.status(400).json({ error: "Identificadores de série ou temporada inválidos: devem ser numéricos" });
+  }
   try {
     const response = await axios.get(`https://api.themoviedb.org/3/tv/${id}/season/${seasonNumber}`, {
       params: {
