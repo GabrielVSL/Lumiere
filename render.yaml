@@ -11,6 +11,6 @@ services:
       - key: DATABASE_URL
         value: sqlite+aiosqlite:///./lumiere.db
       - key: CORS_ORIGINS
-        value: '["*"]'
+        value: http://localhost:5173,https://lumiere.vercel.app
       - key: REGION_POLICY
         value: conservative
