@@ -16,6 +16,28 @@ const BASE_URL = import.meta.env.VITE_API_URL || '/api';
 export const FASTAPI_BASE_URL =
   import.meta.env.VITE_FASTAPI_URL || 'http://localhost:8000/v1';
 
+export const FASTAPI_HEALTH_URL = `${FASTAPI_BASE_URL.replace(/\/v1\/?$/, '')}/healthz`;
+
+/**
+ * Verifica se o backend FastAPI já acordou (útil para monitorar cold boot em nuvem sob demanda).
+ */
+export const checkBackendHealth = async (timeoutMs: number = 15000): Promise<boolean> => {
+  try {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+
+    const res = await fetch(FASTAPI_HEALTH_URL, {
+      method: 'GET',
+      signal: controller.signal,
+      cache: 'no-store',
+    });
+    clearTimeout(timeoutId);
+    return res.ok;
+  } catch {
+    return false;
+  }
+};
+
 export const TMDB_IMAGE_BASE = 'https://image.tmdb.org/t/p';
 export const DIRECT_TMDB_KEY =
   import.meta.env.VITE_TMDB_API_KEY || '2dca580c2a14b55200e784d157207b4d';

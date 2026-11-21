@@ -2,6 +2,8 @@ import React, { useEffect } from 'react';
 import { Navigate, useLocation } from 'react-router-dom';
 import Header from './Header';
 import { useAuth } from '../../context/AuthContext';
+import { useBackend } from '../../context/BackendContext';
+import ServerStartingScreen from '../common/ServerStartingScreen';
 
 interface AppLayoutProps {
   children: React.ReactNode;
@@ -9,6 +11,7 @@ interface AppLayoutProps {
 
 export default function AppLayout({ children }: AppLayoutProps) {
   const { isAuthenticated, isLoading, openAuthModal } = useAuth();
+  const { status: backendStatus, isColdBoot } = useBackend();
   const location = useLocation();
 
   useEffect(() => {
@@ -27,6 +30,18 @@ export default function AppLayout({ children }: AppLayoutProps) {
 
   if (!isAuthenticated) {
     return <Navigate to="/" state={{ from: location }} replace />;
+  }
+
+  // Enquanto o backend em nuvem ainda não acordou, segura a entrada na aplicação
+  if (backendStatus !== 'ready') {
+    if (backendStatus === 'waking' && !isColdBoot) {
+      return (
+        <div className="min-h-screen bg-[#050505] flex items-center justify-center">
+          <div className="w-7 h-7 border-2 border-[#e84c22] border-t-transparent rounded-full animate-spin" />
+        </div>
+      );
+    }
+    return <ServerStartingScreen />;
   }
 
   return (

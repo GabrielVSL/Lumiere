@@ -5,17 +5,19 @@ import Home from './components/Home';
 import LumierePlay from './components/LumierePlay';
 import MyList from './components/MyList';
 import { AuthProvider } from './context/AuthContext';
+import { BackendProvider } from './context/BackendContext';
 import AuthModal from './components/auth/AuthModal';
 import AppLayout from './components/layout/AppLayout';
 
 function App() {
   return (
-    <AuthProvider>
-      <Router>
-        {/* Modal Global de Autenticação com Estética Editorial */}
-        <AuthModal />
+    <BackendProvider>
+      <AuthProvider>
+        <Router>
+          {/* Modal Global de Autenticação com Estética Editorial */}
+          <AuthModal />
 
-        <Routes>
+          <Routes>
           {/* 1. Landing Page Pública */}
           <Route path="/" element={<LandingPage />} />
 
@@ -64,9 +66,10 @@ function App() {
 
           {/* Fallback */}
           <Route path="*" element={<Navigate to="/" replace />} />
-        </Routes>
-      </Router>
-    </AuthProvider>
+          </Routes>
+        </Router>
+      </AuthProvider>
+    </BackendProvider>
   );
 }
 
