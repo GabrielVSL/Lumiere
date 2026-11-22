@@ -2,6 +2,14 @@
   "version": 2,
   "rewrites": [
     {
+      "source": "/lumiere-api/status",
+      "destination": "https://lumiere-js5d.onrender.com/healthz"
+    },
+    {
+      "source": "/lumiere-api/v1/(.*)",
+      "destination": "https://lumiere-js5d.onrender.com/v1/$1"
+    },
+    {
       "source": "/api/(.*)",
       "destination": "/api/index.js"
     },

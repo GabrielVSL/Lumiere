@@ -13,13 +13,27 @@ import {
 // Permite configurar URL customizada via env ou usa a rota relativa /api
 const BASE_URL = import.meta.env.VITE_API_URL || '/api';
 
-export const FASTAPI_BASE_URL =
-  import.meta.env.VITE_FASTAPI_URL || 'http://localhost:8000/v1';
+const isLocalhost =
+  typeof window !== 'undefined' &&
+  (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1');
 
-export const FASTAPI_HEALTH_URL = `${FASTAPI_BASE_URL.replace(/\/v1\/?$/, '')}/healthz`;
+const normalizeLocalApiUrl = (raw?: string): string => {
+  const trimmed = (raw || 'http://localhost:8000/v1').trim().replace(/\/+$/, '');
+  return trimmed.endsWith('/v1') ? trimmed : `${trimmed}/v1`;
+};
+
+// Em produção (Vercel), roteia via proxy same-origin (/lumiere-api) definido em vercel.json
+// para evitar bloqueios de Brave Shields / AdBlockers (ERR_BLOCKED_BY_CLIENT) e erros de CORS.
+export const FASTAPI_BASE_URL = isLocalhost
+  ? normalizeLocalApiUrl(import.meta.env.VITE_FASTAPI_URL)
+  : '/lumiere-api/v1';
+
+export const FASTAPI_HEALTH_URL = isLocalhost
+  ? `${FASTAPI_BASE_URL.replace(/\/v1$/, '')}/healthz`
+  : '/lumiere-api/status';
 
 /**
- * Verifica se o backend FastAPI já acordou (útil para monitorar cold boot em nuvem sob demanda).
+ * Verifica se o backend FastAPI já acordou validando o JSON real ({ status: "ok" }).
  */
 export const checkBackendHealth = async (timeoutMs: number = 15000): Promise<boolean> => {
   try {
@@ -32,7 +46,13 @@ export const checkBackendHealth = async (timeoutMs: number = 15000): Promise<boo
       cache: 'no-store',
     });
     clearTimeout(timeoutId);
-    return res.ok;
+
+    if (!res.ok) return false;
+    const contentType = res.headers.get('content-type') || '';
+    if (!contentType.includes('application/json')) return false;
+
+    const data = await res.json();
+    return data?.status === 'ok';
   } catch {
     return false;
   }
@@ -470,7 +490,14 @@ export const getPlayStream = async (
     clearTimeout(timeoutId);
 
     if (res.ok) {
-      return await res.json();
+      const manifest: PlayStreamManifest = await res.json();
+      if (!isLocalhost && Array.isArray(manifest.subtitles)) {
+        manifest.subtitles = manifest.subtitles.map((sub) => ({
+          ...sub,
+          url: sub.url.replace(/^https?:\/\/[^/]+\/v1\/play\/subtitles\//i, `${FASTAPI_BASE_URL}/play/subtitles/`),
+        }));
+      }
+      return manifest;
     }
   } catch {
     // Falha de rede ou backend offline

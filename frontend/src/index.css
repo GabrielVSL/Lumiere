@@ -92,3 +92,80 @@
 .animate-hero-slide {
   animation: heroSlideFade 0.6s cubic-bezier(0.16, 1, 0.3, 1) forwards;
 }
+
+/* Folding Cube · by @LegedsDaD · https://github.com/LegedsDaD */
+.loader-stage {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 96px;
+}
+
+.l51 {
+  width: 44px;
+  height: 44px;
+  position: relative;
+  transform: rotate(45deg);
+}
+
+.l51 span {
+  position: relative;
+  float: left;
+  width: 50%;
+  height: 50%;
+  transform: scale(1.05);
+}
+
+.l51 span::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: var(--c1, #ff6738);
+  animation: k51 2.4s linear infinite;
+  transform-origin: 100% 100%;
+}
+
+.l51 span:nth-child(2) {
+  transform: scale(1.05) rotateZ(90deg);
+}
+
+.l51 span:nth-child(3) {
+  transform: scale(1.05) rotateZ(270deg);
+}
+
+.l51 span:nth-child(4) {
+  transform: scale(1.05) rotateZ(180deg);
+}
+
+.l51 span:nth-child(2)::before {
+  animation-delay: 0.3s;
+  background: color-mix(in srgb, var(--c1, #ff6738) 60%, var(--c2, #fbbf24));
+}
+
+.l51 span:nth-child(3)::before {
+  animation-delay: 0.9s;
+  background: color-mix(in srgb, var(--c1, #ff6738) 60%, var(--c2, #fbbf24));
+}
+
+.l51 span:nth-child(4)::before {
+  animation-delay: 0.6s;
+  background: var(--c2, #fbbf24);
+}
+
+@keyframes k51 {
+  0%,
+  10% {
+    transform: perspective(140px) rotateX(-180deg);
+    opacity: 0;
+  }
+  25%,
+  75% {
+    transform: perspective(140px) rotateX(0);
+    opacity: 1;
+  }
+  90%,
+  100% {
+    transform: perspective(140px) rotateY(180deg);
+    opacity: 0;
+  }
+}

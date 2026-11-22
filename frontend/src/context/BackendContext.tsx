@@ -48,10 +48,11 @@ export function BackendProvider({ children }: { children: React.ReactNode }) {
     }, 1000);
 
     const wakeUp = async () => {
-      // Em produção (Render), tenta até ~105s para acomodar o cold boot completo
-      const maxAttempts = isLocalBackend ? 3 : 6;
-      const attemptTimeout = isLocalBackend ? 3500 : 18000;
-      const retryDelay = isLocalBackend ? 1200 : 2500;
+      // Em produção, o proxy da Vercel pode dar timeout em ~15-25s enquanto o Render segue acordando;
+      // mantemos retentativas suaves até o container responder 200 OK (~100s+ total).
+      const maxAttempts = isLocalBackend ? 3 : 10;
+      const attemptTimeout = isLocalBackend ? 3500 : 15000;
+      const retryDelay = isLocalBackend ? 1200 : 2000;
 
       for (let attempt = 1; attempt <= maxAttempts; attempt++) {
         if (!isMounted || cycleRef.current !== currentCycle) return;
